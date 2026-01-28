@@ -286,6 +286,58 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, select
   );
 };
 
+// --- CREATABLE SELECT ---
+interface CreatableSelectProps {
+  label?: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+export const CreatableSelect: React.FC<CreatableSelectProps> = ({ label, options, value, onChange, placeholder = 'Select or type...' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = options.filter(o => o.label.toLowerCase().includes(value.toLowerCase()));
+
+  return (
+    <div className="mb-4 w-full relative" ref={wrapperRef}>
+      {label && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">{label}</label>}
+      <input
+        className="block w-full rounded-xl border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5 px-3 border transition-colors placeholder-slate-400"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+      />
+      {isOpen && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 max-h-60 overflow-auto focus:outline-none py-1">
+          {filtered.map(opt => (
+            <div
+              key={opt.value}
+              className="cursor-pointer select-none py-2.5 px-3 hover:bg-indigo-50 dark:hover:bg-slate-700 text-sm text-slate-900 dark:text-slate-200 border-b border-slate-50 dark:border-slate-700/50 last:border-0"
+              onClick={() => { onChange(opt.value); setIsOpen(false); }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- SELECT ---
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;

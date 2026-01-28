@@ -1,5 +1,5 @@
 
-import { User, Asset, Request, UserRole, RequestStatus, Notification, Deployment } from '../types';
+import { User, Asset, Request, UserRole, RequestStatus, Notification, Deployment, SystemSettings } from '../types';
 import { MOCK_USERS, MOCK_ASSETS, MOCK_REQUESTS, MOCK_DEPLOYMENTS } from '../constants';
 
 // Keys for LocalStorage
@@ -9,6 +9,7 @@ const KEY_REQUESTS = 'e9ogral_requests';
 const KEY_DEPLOYMENTS = 'e9ogral_deployments';
 const KEY_NOTIFICATIONS = 'e9ogral_notifications';
 const KEY_SESSION = 'e9ogral_session';
+const KEY_SETTINGS = 'e9ogral_settings';
 
 // --- GLOBAL LOADING LISTENER ---
 type Listener = (isLoading: boolean) => void;
@@ -44,6 +45,7 @@ const initializeDB = () => {
   if (!localStorage.getItem(KEY_REQUESTS)) localStorage.setItem(KEY_REQUESTS, JSON.stringify(MOCK_REQUESTS));
   if (!localStorage.getItem(KEY_DEPLOYMENTS)) localStorage.setItem(KEY_DEPLOYMENTS, JSON.stringify(MOCK_DEPLOYMENTS));
   if (!localStorage.getItem(KEY_NOTIFICATIONS)) localStorage.setItem(KEY_NOTIFICATIONS, JSON.stringify([]));
+  if (!localStorage.getItem(KEY_SETTINGS)) localStorage.setItem(KEY_SETTINGS, JSON.stringify({ adminContactNumber: '+1-555-0199' }));
 };
 
 initializeDB();
@@ -84,10 +86,22 @@ const getDB = () => ({
   assets: JSON.parse(localStorage.getItem(KEY_ASSETS) || '[]') as Asset[],
   requests: JSON.parse(localStorage.getItem(KEY_REQUESTS) || '[]') as Request[],
   deployments: JSON.parse(localStorage.getItem(KEY_DEPLOYMENTS) || '[]') as Deployment[],
-  notifications: JSON.parse(localStorage.getItem(KEY_NOTIFICATIONS) || '[]') as Notification[]
+  notifications: JSON.parse(localStorage.getItem(KEY_NOTIFICATIONS) || '[]') as Notification[],
+  settings: JSON.parse(localStorage.getItem(KEY_SETTINGS) || '{}') as SystemSettings
 });
 
 const saveDB = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
+
+// SETTINGS
+export const getSystemSettings = async (): Promise<SystemSettings> => {
+    await delay(200);
+    return getDB().settings;
+};
+
+export const updateSystemSettings = async (settings: SystemSettings): Promise<void> => {
+    await delay(400);
+    saveDB(KEY_SETTINGS, settings);
+};
 
 // USERS & PROFILE
 export const getUsers = async () => { await delay(300); return getDB().users; };
@@ -258,6 +272,52 @@ export const updateRequestStatus = async (reqId: string, status: RequestStatus, 
   return req;
 };
 
+export const cancelRequest = async (reqId: string, note: string): Promise<Request> => {
+    await delay(500);
+    const db = getDB();
+    const idx = db.requests.findIndex(r => r.id === reqId);
+    if (idx === -1) throw new Error("Request not found");
+
+    if (db.requests[idx].status !== RequestStatus.PENDING) {
+        throw new Error("Only pending requests can be cancelled");
+    }
+
+    db.requests[idx].status = RequestStatus.CANCELLED;
+    db.requests[idx].cancellationNote = note;
+    db.requests[idx].cancelledAt = new Date().toISOString();
+
+    saveDB(KEY_REQUESTS, db.requests);
+    return db.requests[idx];
+};
+
+export const submitAssetReturn = async (reqId: string, evidenceFile?: File, missingItemsReport?: string): Promise<Request> => {
+    await delay(1000);
+    const db = getDB();
+    const idx = db.requests.findIndex(r => r.id === reqId);
+    if (idx === -1) throw new Error("Request not found");
+
+    const req = db.requests[idx];
+    
+    // In a real app we might have a RETURN_PENDING state, but here we mark as returned.
+    req.status = RequestStatus.RETURNED;
+    req.actualReturnDate = new Date().toISOString();
+    req.missingItemsReport = missingItemsReport;
+    
+    if (evidenceFile) {
+        req.returnEvidenceUrl = URL.createObjectURL(evidenceFile);
+    }
+
+    db.requests[idx] = req;
+    
+    saveDB(KEY_REQUESTS, db.requests);
+    
+    let msg = `Assets returned for Request #${req.id}`;
+    if (missingItemsReport) msg += " (With missing items report)";
+    createNotification(req.userId, msg);
+    
+    return req;
+};
+
 // GATE VERIFICATION
 export const verifyGatePass = async (reqId: string, guardId: string, comment: string): Promise<Request> => {
   await delay(600);
@@ -299,6 +359,7 @@ export const reportGateIssue = async (reqId: string, guardId: string, comment: s
     req.gateVerifiedBy = guardId;
     // We treat gateComment as the issue log
     req.gateComment = `[ISSUE REPORTED]: ${comment}`;
+    req.gateVerifiedAt = new Date().toISOString(); // Mark when the issue happened
   
     db.requests[idx] = req;
     saveDB(KEY_REQUESTS, db.requests);

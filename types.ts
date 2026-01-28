@@ -10,7 +10,8 @@ export enum RequestStatus {
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   CHECKED_OUT = 'CHECKED_OUT',
-  RETURNED = 'RETURNED'
+  RETURNED = 'RETURNED',
+  CANCELLED = 'CANCELLED' // New Status
 }
 
 export interface User {
@@ -21,7 +22,7 @@ export interface User {
   isActive: boolean;
   avatarUrl?: string;
   department?: string;
-  phoneNumber?: string; // Added for contact feature
+  phoneNumber?: string;
 }
 
 export interface Asset {
@@ -36,11 +37,11 @@ export interface Asset {
 
 export interface Deployment {
   id: string;
-  clientName: string; // Company Name
-  location: string;       // NEW
-  contactPerson: string;  // NEW
-  contactNumber: string;  // NEW
-  contactDesignation: string; // NEW
+  clientName: string;
+  location: string;
+  contactPerson: string;
+  contactNumber: string;
+  contactDesignation: string;
   items: Asset[];
   deploymentDate: string;
   deployedBy: string;
@@ -52,7 +53,6 @@ export interface Request {
   userId: string;
   user: User;
   
-  // Changed from single asset to multiple
   itemIds: string[]; 
   items: Asset[]; 
 
@@ -61,13 +61,22 @@ export interface Request {
   returnDate: string;
   purpose: string;
   
-  // Evidence
-  evidenceUrl?: string; // URL or Mock File Name
+  // Evidence (Request creation)
+  evidenceUrl?: string;
 
   // Approval
   approvedBy?: string;
   approvedAt?: string;
   rejectionReason?: string;
+
+  // Cancellation
+  cancellationNote?: string;
+  cancelledAt?: string;
+
+  // Return
+  actualReturnDate?: string;
+  returnEvidenceUrl?: string;
+  missingItemsReport?: string; // New field for missing/damaged items
 
   // Gate Verification
   gateVerified: boolean;
@@ -89,4 +98,8 @@ export interface Notification {
 export interface AuthState {
   user: User | null;
   token: string | null;
+}
+
+export interface SystemSettings {
+  adminContactNumber: string;
 }
